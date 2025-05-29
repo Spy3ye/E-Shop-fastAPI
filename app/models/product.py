@@ -1,6 +1,6 @@
 from odmantic import Model
 from typing import Optional
-from bson import ObjectId
+# from bson import ObjectId
 
 class Product(Model):
     name: str

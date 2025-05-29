@@ -1,6 +1,6 @@
 from odmantic import Model, Reference
 from typing import List
-from bson import ObjectId
+# from bson import ObjectId
 from datetime import datetime
 from app.models.user import User
 from app.models.product import Product

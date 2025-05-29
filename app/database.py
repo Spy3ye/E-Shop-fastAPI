@@ -1,5 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGODB_URL, DATABASE_NAME
+from dotenv import MONGO_URI, DATABASE_NAME
 
 class Database:
     client: AsyncIOMotorClient = None
@@ -9,9 +9,9 @@ database = Database()
 
 async def connect_to_mongo():
     """Create database connection"""
-    database.client = AsyncIOMotorClient(MONGODB_URL)
+    database.client = AsyncIOMotorClient(MONGO_URI)
     database.database = database.client[DATABASE_NAME]
-    print(f"Connected to MongoDB at {MONGODB_URL}")
+    print(f"Connected to MongoDB at {MONGO_URI}")
 
 async def close_mongo_connection():
     """Close database connection"""

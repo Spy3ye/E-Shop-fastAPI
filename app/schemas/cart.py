@@ -1,39 +1,25 @@
-# app/schemas/cart.py
+from pydantic import BaseModel
+from typing import List
 
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from datetime import datetime
+class CartItemCreate(BaseModel):
+    product_id: str
+    quantity: int
 
-class CartItemBase(BaseModel):
-    product_id: int
-    quantity: int = Field(..., gt=0)
+class CartItemOut(BaseModel):
+    id: str
+    product_id: str
+    quantity: int
 
-class CartItemCreate(CartItemBase):
-    pass
-
-class CartItemUpdate(BaseModel):
-    quantity: int = Field(..., gt=0)
-
-class CartItem(CartItemBase):
-    id: int
-    cart_id: int
-    added_at: datetime
-    
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class CartItemWithProduct(CartItem):
-    product_name: str
-    product_price: float
-    product_image_url: Optional[str] = None
+class CartCreate(BaseModel):
+    items: List[CartItemCreate]
 
-class Cart(BaseModel):
-    id: int
-    user_id: int
-    items: List[CartItemWithProduct]
-    total_price: float
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    
+class CartOut(BaseModel):
+    id: str
+    user_id: str
+    items: List[CartItemOut]
+
     class Config:
-        from_attributes = True
+        orm_mode = True
