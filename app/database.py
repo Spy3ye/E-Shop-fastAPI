@@ -11,7 +11,7 @@ async def connect_to_mongo():
     """Create database connection"""
     database.client = AsyncIOMotorClient(MONGO_URI)
     database.database = database.client[DATABASE_NAME]
-    print(f"Connected to MongoDB at {MONGO_URI}")
+    print(f"Connected to MongoDB at {DATABASE_NAME}")
 
 async def close_mongo_connection():
     """Close database connection"""
