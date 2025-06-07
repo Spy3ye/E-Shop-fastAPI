@@ -11,6 +11,9 @@ class ProductCreate(BaseModel):
 
 class ProductOut(ProductCreate):
     id: str
+    name: str
+    price: float
+    category: Optional[str]
 
     class Config:
         orm_mode = True

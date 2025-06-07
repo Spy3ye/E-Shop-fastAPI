@@ -12,7 +12,7 @@ class OrderOut(BaseModel):
     product_ids: List[str]
     total_price: float
     status: str
-    created_at: datetime
+    created_at: datetime.now
 
     class Config:
         orm_mode = True

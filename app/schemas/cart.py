@@ -8,6 +8,7 @@ class CartItemCreate(BaseModel):
 class CartItemOut(BaseModel):
     id: str
     product_id: str
+    name: str
     quantity: int
 
     class Config:

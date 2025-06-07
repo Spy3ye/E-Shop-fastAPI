@@ -1,21 +1,24 @@
-from odmantic import Model, Reference
+# from odmantic import Model, Reference
+from beanie import document
 from typing import List, Optional
-from pydantic import BaseModel
+from uuid import UUID,uuid4
+from pydantic import Field
 # from bson import ObjectId
 from app.models.user import User
 from app.models.product import Product
 
-class CartItem(Model):
-    product: Product = Reference()
+class CartItem(document):
+    product: Product
     quantity: int
 
-    class Config:
-        collection = "cart_items"
+    class Settings:
+        name = "cart_items"
 
-class Cart(Model):
-    user: User = Reference()
+class Cart(document):
+    cart_Id : UUID = Field(default_factory=uuid4)
+    user: User
     items: List[CartItem] = []
     updated_at: Optional[str] = None
 
-    class Config:
-        collection = "carts"
+    class Settings:
+        name = "carts"
