@@ -1,9 +1,9 @@
 # services/order_service.py
 from odmantic import AIOEngine
-from models.order import Order
-from models.cart import Cart
-from models.product import Product
-from schemas.order import OrderOut
+from app.models.order import Order
+from app.models.cart import Cart
+from app.models.product import Product
+from app.schemas.order import OrderOut
 from fastapi import HTTPException
 from datetime import datetime
 

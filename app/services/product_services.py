@@ -1,7 +1,7 @@
 # services/product_service.py
 from odmantic import AIOEngine
-from models.product import Product
-from schemas.product import ProductCreate, ProductOut
+from app.models.product import Product
+from app.schemas.product import ProductCreate, ProductOut
 from fastapi import HTTPException
 
 async def create_product(engine: AIOEngine, data: ProductCreate) -> ProductOut:

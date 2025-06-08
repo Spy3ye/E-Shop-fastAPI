@@ -1,8 +1,8 @@
 # services/cart_service.py
 from odmantic import AIOEngine
-from models.cart import Cart, CartItem
-from models.product import Product
-from schemas.cart import CartOut, CartItemOut
+from app.models.cart import Cart, CartItem
+from app.models.product import Product
+from app.schemas.cart import CartOut, CartItemOut
 from fastapi import HTTPException
 
 async def get_or_create_cart(engine: AIOEngine, user_id: str) -> Cart:
