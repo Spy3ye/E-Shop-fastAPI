@@ -1,6 +1,6 @@
-from beanie import document
+from beanie import Document
 from uuid import UUID,uuid4
-from pydantic import Field
+from pydantic import Field,ConfigDict
 # from odmantic import Model
 from typing import Optional
 from enum import Enum
@@ -9,7 +9,7 @@ class UserRole(str, Enum):
     customer = "customer"
     admin = "admin"
 
-class User(document):
+class User(Document):
     user_Id: UUID = Field(default_factory=uuid4)
     username: str
     fullName: str
@@ -18,5 +18,4 @@ class User(document):
     role: UserRole = UserRole.customer
     is_active: bool = True
 
-    class Settings:
-        name = "users"
+    model_config = ConfigDict(from_attributes=True)

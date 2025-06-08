@@ -2,7 +2,7 @@
 # from odmantic import AIOEngine
 from typing import Optional
 from app.models.user import User
-from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.api_schemas.user import UserCreate, UserOut, UserUpdate
 from fastapi import HTTPException, Depends
 from app.utils.auth import hash_password , verify_password
 from fastapi.security import OAuth2PasswordBearer

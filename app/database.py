@@ -1,37 +1,316 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import MONGO_URI, DATABASE_NAME
+import os
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from bson import ObjectId
+from dotenv import load_dotenv
+from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure, ConnectionFailure, DuplicateKeyError
+from pymongo.collection import Collection
+from pymongo.database import Database as MongoDatabase
+import logging
 
-class Database:
-    client: AsyncIOMotorClient = None
-    database = None
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-database = Database()
+# Load environment variables
+load_dotenv()
 
-async def connect_to_mongo():
-    """Create database connection"""
-    database.client = AsyncIOMotorClient(MONGO_URI)
-    database.database = database.client[DATABASE_NAME]
-    print(f"Connected to MongoDB at {DATABASE_NAME}")
+class DatabaseManager:
+    """
+    MongoDB Database Manager for E-commerce API
+    Handles all database operations and connections
+    """
+    
+    def __init__(self):
+        self.mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+        self.database_name = os.getenv("DATABASE_NAME", "ecommerce_db")
+        self.client: Optional[MongoClient] = None
+        self.db: Optional[MongoDatabase] = None
+        self._collections = {}
+        
+    def connect(self) -> bool:
+        """Establish connection to MongoDB"""
+        try:
+            self.client = MongoClient(self.mongo_uri)
+            # Test connection
+            self.client.admin.command('ping')
+            self.db = self.client[self.database_name]
+            logger.info(f"✅ Connected to MongoDB: {self.database_name}")
+            return True
+        except ConnectionFailure as e:
+            logger.error(f"❌ Failed to connect to MongoDB: {e}")
+            return False
+    
+    def disconnect(self):
+        """Close MongoDB connection"""
+        if self.client:
+            self.client.close()
+            logger.info("🔌 Disconnected from MongoDB")
+    
+    def get_collection(self, collection_name: str) -> Collection:
+        """Get a MongoDB collection"""
+        if collection_name not in self._collections:
+            self._collections[collection_name] = self.db[collection_name]
+        return self._collections[collection_name]
+    
+    @property
+    def users(self) -> Collection:
+        return self.get_collection("users")
+    
+    @property
+    def products(self) -> Collection:
+        return self.get_collection("products")
+    
+    @property
+    def orders(self) -> Collection:
+        return self.get_collection("orders")
+    
+    @property
+    def cart(self) -> Collection:
+        return self.get_collection("cart")
+    
+    @property
+    def order_items(self) -> Collection:
+        return self.get_collection("order_items")
+    
+    @property
+    def sessions(self) -> Collection:
+        return self.get_collection("sessions")
+    
+    @property
+    def categories(self) -> Collection:
+        return self.get_collection("categories")
+    
+    
+    
+    def create_indexes(self) -> bool:
+        """Create all necessary indexes for optimal performance"""
+        try:
+            logger.info("🔧 Creating database indexes...")
+            
+            # Users collection indexes
+            try:
+                self.users.create_index("email", unique=True, name="email_unique")
+                self.users.create_index("username", unique=True, name="username_unique")
+                self.users.create_index("created_at", name="created_at_idx")
+                self.users.create_index("is_active", name="is_active_idx")
+                logger.info("✅ Users indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Users indexes already exist")
+            
+            # Products collection indexes
+            try:
+                self.products.create_index("name", name="name_idx")
+                self.products.create_index("category", name="category_idx")
+                self.products.create_index("price", name="price_idx")
+                self.products.create_index("is_active", name="product_active_idx")
+                self.products.create_index("created_at", name="product_created_idx")
+                self.products.create_index("stock_quantity", name="stock_idx")
+                self.products.create_index([("name", "text"), ("description", "text")], name="search_text")
+                self.products.create_index([("category", 1), ("price", 1)], name="category_price_idx")
+                logger.info("✅ Products indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Products indexes already exist")
+            
+            # Orders collection indexes
+            try:
+                self.orders.create_index("user_id", name="user_orders_idx")
+                self.orders.create_index("status", name="order_status_idx")
+                self.orders.create_index("created_at", name="order_created_idx")
+                self.orders.create_index([("user_id", 1), ("created_at", -1)], name="user_orders_date_idx")
+                self.orders.create_index([("status", 1), ("created_at", -1)], name="status_date_idx")
+                logger.info("✅ Orders indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Orders indexes already exist")
+            
+            # Cart collection indexes
+            try:
+                self.cart.create_index("user_id", unique=True, name="user_cart_unique")
+                self.cart.create_index("updated_at", name="cart_updated_idx")
+                logger.info("✅ Cart indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Cart indexes already exist")
+            
+            # Order Items collection indexes
+            try:
+                self.order_items.create_index("order_id", name="order_items_order_idx")
+                self.order_items.create_index("product_id", name="order_items_product_idx")
+                self.order_items.create_index([("order_id", 1), ("product_id", 1)], name="order_product_idx")
+                logger.info("✅ Order Items indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Order Items indexes already exist")
+            
+            # Sessions collection indexes (for authentication)
+            try:
+                self.sessions.create_index("token", unique=True, name="token_unique")
+                self.sessions.create_index("user_id", name="session_user_idx")
+                self.sessions.create_index("expires_at", expireAfterSeconds=0, name="session_ttl")
+                logger.info("✅ Sessions indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Sessions indexes already exist")
+            
+            # Categories collection indexes
+            try:
+                self.categories.create_index("name", unique=True, name="category_name_unique")
+                self.categories.create_index("slug", unique=True, name="category_slug_unique")
+                self.categories.create_index("is_active", name="category_active_idx")
+                logger.info("✅ Categories indexes created")
+            except OperationFailure as e:
+                if "already exists" not in str(e):
+                    raise e
+                logger.info("✅ Categories indexes already exist")
+            
+            logger.info("🎉 All database indexes created successfully!")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating indexes: {e}")
+            return False
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Check database health and return status"""
+        try:
+            # Test connection
+            self.client.admin.command('ping')
+            
+            # Get database stats
+            stats = self.db.command("dbStats")
+            
+            return {
+                "status": "healthy",
+                "database": self.database_name,
+                "collections": stats.get("collections", 0),
+                "data_size": stats.get("dataSize", 0),
+                "storage_size": stats.get("storageSize", 0),
+                "indexes": stats.get("indexes", 0),
+                "connection": "active"
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "connection": "failed"
+            }
+    
+    
+    
+    def initialize(self) -> bool:
+        """Initialize database connection and create indexes"""
+        if not self.connect():
+            return False
+        
+        if not self.create_indexes():
+            return False
+        
+        # Verify collections work by doing a simple operation
+        try:
+            collections_to_test = ['users', 'products', 'orders', 'cart']
+            for collection_name in collections_to_test:
+                collection = self.get_collection(collection_name)
+                # Test insert and delete
+                test_doc = {"_test": True, "timestamp": datetime.utcnow()}
+                result = collection.insert_one(test_doc)
+                collection.delete_one({"_id": result.inserted_id})
+                logger.info(f"✅ {collection_name} collection verified")
+            
+            logger.info("🚀 Database initialized successfully!")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Database verification failed: {e}")
+            return False
+    
+    def get_database_info(self) -> Dict[str, Any]:
+        """Get detailed database information"""
+        try:
+            # Server info
+            server_info = self.client.server_info()
+            
+            # Database stats
+            db_stats = self.db.command("dbStats")
+            
+            # Collection info
+            collections = self.db.list_collection_names()
+            collection_stats = {}
+            
+            for collection_name in collections:
+                try:
+                    stats = self.db.command("collStats", collection_name)
+                    collection_stats[collection_name] = {
+                        "count": stats.get("count", 0),
+                        "size": stats.get("size", 0),
+                        "avgObjSize": stats.get("avgObjSize", 0),
+                        "totalIndexSize": stats.get("totalIndexSize", 0),
+                        "nindexes": stats.get("nindexes", 0)
+                    }
+                except:
+                    collection_stats[collection_name] = {"error": "Could not get stats"}
+            
+            return {
+                "server_version": server_info.get("version"),
+                "database_name": self.database_name,
+                "collections": collections,
+                "collection_stats": collection_stats,
+                "database_stats": {
+                    "collections": db_stats.get("collections", 0),
+                    "objects": db_stats.get("objects", 0),
+                    "data_size": db_stats.get("dataSize", 0),
+                    "storage_size": db_stats.get("storageSize", 0),
+                    "indexes": db_stats.get("indexes", 0),
+                    "index_size": db_stats.get("indexSize", 0)
+                }
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
-async def close_mongo_connection():
-    """Close database connection"""
-    if database.client:
-        database.client.close()
-        print("Disconnected from MongoDB")
+# Create global database instance
+database = DatabaseManager()
 
-def get_database():
-    """Get database instance"""
-    return database.database
+# Convenience functions for backward compatibility
+def create_tables() -> bool:
+    """Initialize database - for compatibility with existing code"""
+    return database.initialize()
 
-# Collection getters
-def get_users_collection():
-    return get_database().users
+def get_database() -> MongoDatabase:
+    """Get the MongoDB database instance"""
+    return database.db
 
-def get_products_collection():
-    return get_database().products
+def check_database_health() -> bool:
+    """Check if database is healthy"""
+    health = database.health_check()
+    return health.get("status") == "healthy"
 
-def get_orders_collection():
-    return get_database().orders
+# Export collections for direct access
+def get_users_collection() -> Collection:
+    return database.users
 
-def get_categories_collection():
-    return get_database().categories
+def get_products_collection() -> Collection:
+    return database.products
+
+def get_orders_collection() -> Collection:
+    return database.orders
+
+def get_cart_collection() -> Collection:
+    return database.cart
+
+def get_order_items_collection() -> Collection:
+    return database.order_items
+
+def get_sessions_collection() -> Collection:
+    return database.sessions
+
+def get_categories_collection() -> Collection:
+    return database.categories

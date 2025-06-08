@@ -3,8 +3,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 # from odmantic import AIOEngine
 from app.models.user import User
-from app.schemas.token import Token
-from app.schemas.user import UserLogin
+from app.api_schemas.token import Token
+from app.api_schemas.user import UserLogin
 from app.services.user_services import UserServices
 from app.utils.auth import verify_password, create_access_token,create_refresh_token
 from datetime import timedelta

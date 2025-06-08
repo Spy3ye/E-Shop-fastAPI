@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict,Field
 from typing import List
 from datetime import datetime
 
@@ -12,7 +12,6 @@ class OrderOut(BaseModel):
     product_ids: List[str]
     total_price: float
     status: str
-    created_at: datetime.now
+    created_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

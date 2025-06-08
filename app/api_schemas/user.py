@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator ,ConfigDict
 from typing import Optional
 from app.models.user import UserRole
 
@@ -20,8 +20,7 @@ class UserOut(BaseModel):
     email: EmailStr
     role: UserRole
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserLogin(BaseModel):
     email: EmailStr

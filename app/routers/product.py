@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from odmantic import AIOEngine
-from schemas.product import ProductCreate, ProductOut
-from services.product_services import create_product, get_product, list_products
+from app.api_schemas.product import ProductCreate, ProductOut
+from app.services.product_services import create_product, get_product, list_products
 
 router = APIRouter(prefix="/products", tags=["Products"])
 

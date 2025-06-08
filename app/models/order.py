@@ -1,7 +1,7 @@
 # from odmantic import Model, Reference
-from beanie import document
+from beanie import Document
 from uuid import UUID,uuid4
-from pydantic import Field
+from pydantic import Field,ConfigDict
 from enum import Enum
 from typing import List
 # from bson import ObjectId
@@ -15,13 +15,12 @@ class OrderStatus(str,Enum):
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
-class Order(document):
+class Order(Document):
     order_Id : UUID = Field(default_factory=uuid4)
     user: User
     products: List[Product]
     total_price: float
     status: str = OrderStatus.PENDING
-    created_at: datetime = datetime.now()
+    created_at: datetime = Field(default_factory=datetime.now)
 
-    class Settings:
-        name = "orders"
+    model_config = ConfigDict(from_attributes=True)

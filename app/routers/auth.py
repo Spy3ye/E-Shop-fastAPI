@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from odmantic import AIOEngine
-from schemas.token import Token
-from schemas.user import UserLogin
-from services.auth_services import login_user
+from app.api_schemas.token import Token
+from app.api_schemas.user import UserLogin
+from app.services.auth_services import login_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

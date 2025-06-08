@@ -1,11 +1,14 @@
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+import os
 from datetime import datetime, timedelta
-from dotenv import SECRET_KEY,ALGORITHM,SECRET_REFRESH_KEY
+from dotenv import load_dotenv
 
-# SECRET_KEY = "your-secret-key"  # 🔒 use .env in production
-# ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("HS256")
+SECRET_REFRESH_KEY = os.getenv("SECRET_REFRESH_KEY")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

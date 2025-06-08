@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from odmantic import AIOEngine
-from schemas.order import OrderOut
-from services.order_services import place_order
+from app.api_schemas.order import OrderOut
+from app.services.order_services import place_order
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 

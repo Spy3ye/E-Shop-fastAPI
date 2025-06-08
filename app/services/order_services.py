@@ -3,7 +3,7 @@ from odmantic import AIOEngine
 from app.models.order import Order
 from app.models.cart import Cart
 from app.models.product import Product
-from app.schemas.order import OrderOut
+from app.api_schemas.order import OrderOut
 from fastapi import HTTPException
 from datetime import datetime
 

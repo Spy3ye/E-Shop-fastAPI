@@ -1,11 +1,11 @@
 # from odmantic import Model
 from uuid import UUID,uuid4
-from pydantic import Field
-from beanie import document
+from pydantic import Field , ConfigDict
+from beanie import Document
 from typing import Optional
 # from bson import ObjectId
 
-class Product(document):
+class Product(Document):
     product_Id: UUID = Field(default_factory=uuid4)
     name: str
     description: Optional[str]
@@ -14,5 +14,4 @@ class Product(document):
     category: Optional[str]
     image_url: Optional[str]
 
-    class Settings:
-        name = "products"
+    model_config = ConfigDict(from_attributes=True)

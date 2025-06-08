@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel , ConfigDict
 from typing import List
 
 class CartItemCreate(BaseModel):
@@ -11,8 +11,7 @@ class CartItemOut(BaseModel):
     name: str
     quantity: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CartCreate(BaseModel):
     items: List[CartItemCreate]
@@ -22,5 +21,4 @@ class CartOut(BaseModel):
     user_id: str
     items: List[CartItemOut]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
