@@ -1,6 +1,6 @@
 # app/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI,HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
@@ -35,7 +35,7 @@ async def startup_event():
     db_manager = DatabaseManager()
     success = db_manager.initialize()  # This calls database.initialize()
     if not success:
-        raise Exception("Failed to initialize database")
+        raise HTTPException("Failed to initialize database")
 
 @app.on_event("shutdown") 
 async def shutdown_event():
@@ -66,18 +66,18 @@ async def root():
     return {"message": "Welcome to the E-Commerce API"}
 
 # Custom OpenAPI schema
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
+# def custom_openapi():
+#     if app.openapi_schema:
+#         return app.openapi_schema
     
-    openapi_schema = get_openapi(
-        title="E-Commerce API",
-        version="1.0.0",
-        description="API for a modern e-commerce platform",
-        routes=app.routes,
-    )
+#     openapi_schema = get_openapi(
+#         title="E-Commerce API",
+#         version="1.0.0",
+#         description="API for a modern e-commerce platform",
+#         routes=app.routes,
+#     )
     
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+#     app.openapi_schema = openapi_schema
+#     return app.openapi_schema
 
-app.openapi = custom_openapi
+# app.openapi = custom_openapi
