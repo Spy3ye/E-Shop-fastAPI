@@ -1,6 +1,4 @@
-# app/main.py
-
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
@@ -18,7 +16,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, replace with specific origins
     allow_credentials=True,
-    allow_methods=["GET" , "POST" , "PUT" , "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -29,22 +27,23 @@ app.include_router(product.router, tags=["Products"], prefix="/api/products")
 app.include_router(order.router, tags=["Orders"], prefix="/api/orders")
 app.include_router(cart.router, tags=["Shopping Cart"], prefix="/api/cart")
 
+# Create a single instance of DatabaseManager for the app lifecycle
+db_manager = DatabaseManager()
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on application startup"""
-    db_manager = DatabaseManager()
-    success = db_manager.initialize()  # This calls database.initialize()
+    success = await db_manager.initialize()  # This calls database.initialize()
     if not success:
-        raise HTTPException("Failed to initialize database")
+        raise HTTPException(status_code=500, detail="Failed to initialize database")
 
-@app.on_event("shutdown") 
+@app.on_event("shutdown")
 async def shutdown_event():
     """Clean up database connections on shutdown"""
-    db_manager = DatabaseManager()
     db_manager.disconnect()
 
 # Health check endpoints
-@app.get("/")
+@app.get("/", tags=["Root"])
 async def root():
     return {
         "message": "E-Commerce API is running!",
@@ -54,30 +53,30 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    health_info = DatabaseManager.health_check()
+    health_info = db_manager.health_check()
     return health_info
 
 @app.get("/db-info")
 async def database_info():
     """Get detailed database information"""
-    return DatabaseManager.get_database_info()
-@app.get("/", tags=["Root"])
-async def root():
-    return {"message": "Welcome to the E-Commerce API"}
+    return db_manager.get_database_info()
 
 # Custom OpenAPI schema
-# def custom_openapi():
-#     if app.openapi_schema:
-#         return app.openapi_schema
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
     
-#     openapi_schema = get_openapi(
-#         title="E-Commerce API",
-#         version="1.0.0",
-#         description="API for a modern e-commerce platform",
-#         routes=app.routes,
-#     )
+    openapi_schema = get_openapi(
+        title="E-Commerce API",
+        version="1.0.0",
+        description="API for a modern e-commerce platform",
+        routes=app.routes,
+    )
     
-#     app.openapi_schema = openapi_schema
-#     return app.openapi_schema
+    # Here you can customize the schema if needed, e.g. add logos, custom tags, etc.
+    # openapi_schema["info"]["x-logo"] = {"url": "https://example.com/logo.png"}
 
-# app.openapi = custom_openapi
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi

@@ -1,15 +1,8 @@
 import os
-from typing import Optional, List, Dict, Any
-from datetime import datetime
-from bson import ObjectId
+from typing import Dict, Any
 from dotenv import load_dotenv
-from pymongo import MongoClient, ASCENDING, DESCENDING
-from pymongo.errors import OperationFailure, ConnectionFailure, DuplicateKeyError
-from pymongo.collection import Collection
-from pymongo.database import Database as MongoDatabase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
-import ssl
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,210 +13,192 @@ load_dotenv()
 
 class DatabaseManager:
     def __init__(self):
-        # Only initialize non-async attributes here
-        self.client = None
-        self.database = None
-        self.engine = None
-        self.logger = logging.getLogger(__name__)
-    
-    def connect(self):
-        """Synchronous connection setup"""
+        self.client: AsyncIOMotorClient | None = None
+        self.db: AsyncIOMotorDatabase | None = None
+        self.database_name = os.getenv("DATABASE_NAME")
+
+    def connect(self) -> bool:
+        """Initialize Motor client and database instance synchronously."""
         try:
-            self.client = AsyncIOMotorClient(os.getenv("MONGO_URI"))
-            self.database = self.client[os.getenv("DATABASE_NAME")]
-            self.engine = AIOEngine(client=self.client, database=os.getenv("DATABASE_NAME"))
-            self.logger.info("✅ Successfully connected to MongoDB")
-            return True
-        except Exception as e:
-            self.logger.error(f"❌ Failed to connect to MongoDB: {e}")
-            return False
-    
-    async def initialize(self):
-        """Async initialization method"""
-        try:
-            if not self.connect():
+            mongo_uri = os.getenv("MONGO_URI")
+            if not mongo_uri or not self.database_name:
+                logger.error("Mongo URI or DATABASE_NAME environment variables not set.")
                 return False
             
+            self.client = AsyncIOMotorClient(mongo_uri)
+            self.db = self.client[self.database_name]
+
+            logger.info("✅ Successfully connected to MongoDB")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to MongoDB: {e}")
+            return False
+
+    async def initialize(self) -> bool:
+        """Async initialization: connect, create indexes, verify connection."""
+        if not self.connect():
+            return False
+        
+        try:
             await self.create_indexes()
-            
             if not await self.verify_connection():
                 return False
             
-            self.logger.info("🎉 Database initialized successfully!")
+            logger.info("🎉 Database initialized successfully!")
             return True
         except Exception as e:
-            self.logger.error(f"❌ Database initialization failed: {e}")
+            logger.error(f"❌ Database initialization failed: {e}")
             return False
-    
-    async def verify_connection(self):
-        """Verify database connection"""
+
+    async def verify_connection(self) -> bool:
+        """Ping the MongoDB server to verify connection."""
+        if not self.db:
+            logger.error("Database is not connected.")
+            return False
+        
         try:
-            # Simple ping test
-            await self.database.command("ping")
-            self.logger.info("✅ Database verification successful")
+            # Motor uses await for db commands
+            await self.db.command("ping")
+            logger.info("✅ Database verification successful")
             return True
         except Exception as e:
-            self.logger.error(f"❌ Database verification failed: {e}")
+            logger.error(f"❌ Database verification failed: {e}")
             return False
-    
-    async def create_indexes(self):
-        """Create database indexes"""
+
+    async def create_indexes(self) -> None:
+        """Create indexes on collections asynchronously."""
+        if not self.db:
+            raise RuntimeError("Database is not connected")
+        
+        logger.info("🔧 Creating database indexes...")
+        
+        # Users indexes
         try:
-            # Your existing index creation code here
-            self.logger.info("🔧 Creating database indexes...")
-            # ... your index creation logic
-            self.logger.info("✅ All database indexes created successfully!")
+            users = self.db["users"]
+            await users.create_index("email", unique=True, name="email_unique")
+            await users.create_index("username", unique=True, name="username_unique")
+            await users.create_index("created_at", name="created_at_idx")
+            await users.create_index("is_active", name="is_active_idx")
+            logger.info("✅ Users indexes created")
         except Exception as e:
-            self.logger.error(f"❌ Failed to create indexes: {e}")
-            raise
-    
-    async def disconnect(self):
-        """Close MongoDB connection"""
+            logger.warning(f"Users indexes creation warning: {e}")
+
+        # Products indexes
+        try:
+            products = self.db["products"]
+            await products.create_index("name", name="name_idx")
+            await products.create_index("category", name="category_idx")
+            await products.create_index("price", name="price_idx")
+            await products.create_index("is_active", name="product_active_idx")
+            await products.create_index("created_at", name="product_created_idx")
+            await products.create_index("stock_quantity", name="stock_idx")
+            await products.create_index([("name", "text"), ("description", "text")], name="search_text")
+            await products.create_index([("category", 1), ("price", 1)], name="category_price_idx")
+            logger.info("✅ Products indexes created")
+        except Exception as e:
+            logger.warning(f"Products indexes creation warning: {e}")
+
+        # Orders indexes
+        try:
+            orders = self.db["orders"]
+            await orders.create_index("user_id", name="user_orders_idx")
+            await orders.create_index("status", name="order_status_idx")
+            await orders.create_index("created_at", name="order_created_idx")
+            await orders.create_index([("user_id", 1), ("created_at", -1)], name="user_orders_date_idx")
+            await orders.create_index([("status", 1), ("created_at", -1)], name="status_date_idx")
+            logger.info("✅ Orders indexes created")
+        except Exception as e:
+            logger.warning(f"Orders indexes creation warning: {e}")
+
+        # Cart indexes
+        try:
+            cart = self.db["cart"]
+            await cart.create_index("user_id", unique=True, name="user_cart_unique")
+            await cart.create_index("updated_at", name="cart_updated_idx")
+            logger.info("✅ Cart indexes created")
+        except Exception as e:
+            logger.warning(f"Cart indexes creation warning: {e}")
+
+        # Order Items indexes
+        try:
+            order_items = self.db["order_items"]
+            await order_items.create_index("order_id", name="order_items_order_idx")
+            await order_items.create_index("product_id", name="order_items_product_idx")
+            await order_items.create_index([("order_id", 1), ("product_id", 1)], name="order_product_idx")
+            logger.info("✅ Order Items indexes created")
+        except Exception as e:
+            logger.warning(f"Order Items indexes creation warning: {e}")
+
+        # Sessions indexes
+        try:
+            sessions = self.db["sessions"]
+            await sessions.create_index("token", unique=True, name="token_unique")
+            await sessions.create_index("user_id", name="session_user_idx")
+            await sessions.create_index("expires_at", expireAfterSeconds=0, name="session_ttl")
+            logger.info("✅ Sessions indexes created")
+        except Exception as e:
+            logger.warning(f"Sessions indexes creation warning: {e}")
+
+        # Categories indexes
+        try:
+            categories = self.db["categories"]
+            await categories.create_index("name", unique=True, name="category_name_unique")
+            await categories.create_index("slug", unique=True, name="category_slug_unique")
+            await categories.create_index("is_active", name="category_active_idx")
+            logger.info("✅ Categories indexes created")
+        except Exception as e:
+            logger.warning(f"Categories indexes creation warning: {e}")
+
+        logger.info("🎉 All database indexes created successfully!")
+
+    async def disconnect(self) -> None:
+        """Close the MongoDB connection asynchronously."""
         if self.client:
             self.client.close()
             logger.info("🔌 Disconnected from MongoDB")
-    
-    async def get_collection(self, collection_name: str) -> Collection:
-        """Get a MongoDB collection"""
-        if collection_name not in self._collections:
-            self._collections[collection_name] = self.db[collection_name]
-        return self._collections[collection_name]
-    
+
+    # Collections getter methods (sync, since Motor collections are async ready)
+    def get_collection(self, name: str):
+        if not self.db:
+            raise RuntimeError("Database not connected")
+        return self.db[name]
+
     @property
-    async def users(self) -> Collection:
+    def users(self):
         return self.get_collection("users")
-    
+
     @property
-    async def products(self) -> Collection:
+    def products(self):
         return self.get_collection("products")
-    
+
     @property
-    async def orders(self) -> Collection:
+    def orders(self):
         return self.get_collection("orders")
-    
+
     @property
-    async def cart(self) -> Collection:
+    def cart(self):
         return self.get_collection("cart")
-    
+
     @property
-    async def order_items(self) -> Collection:
+    def order_items(self):
         return self.get_collection("order_items")
-    
+
     @property
-    async def sessions(self) -> Collection:
+    def sessions(self):
         return self.get_collection("sessions")
-    
+
     @property
-    async def categories(self) -> Collection:
+    def categories(self):
         return self.get_collection("categories")
-    
-    
-    
-    # async def create_indexes(self) -> bool:
-    #     """Create all necessary indexes for optimal performance"""
-    #     try:
-    #         logger.info("🔧 Creating database indexes...")
-            
-    #         # Users collection indexes
-    #         try:
-    #             self.users.create_index("email", unique=True, name="email_unique")
-    #             self.users.create_index("username", unique=True, name="username_unique")
-    #             self.users.create_index("created_at", name="created_at_idx")
-    #             self.users.create_index("is_active", name="is_active_idx")
-    #             logger.info("✅ Users indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Users indexes already exist")
-            
-    #         # Products collection indexes
-    #         try:
-    #             self.products.create_index("name", name="name_idx")
-    #             self.products.create_index("category", name="category_idx")
-    #             self.products.create_index("price", name="price_idx")
-    #             self.products.create_index("is_active", name="product_active_idx")
-    #             self.products.create_index("created_at", name="product_created_idx")
-    #             self.products.create_index("stock_quantity", name="stock_idx")
-    #             self.products.create_index([("name", "text"), ("description", "text")], name="search_text")
-    #             self.products.create_index([("category", 1), ("price", 1)], name="category_price_idx")
-    #             logger.info("✅ Products indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Products indexes already exist")
-            
-    #         # Orders collection indexes
-    #         try:
-    #             self.orders.create_index("user_id", name="user_orders_idx")
-    #             self.orders.create_index("status", name="order_status_idx")
-    #             self.orders.create_index("created_at", name="order_created_idx")
-    #             self.orders.create_index([("user_id", 1), ("created_at", -1)], name="user_orders_date_idx")
-    #             self.orders.create_index([("status", 1), ("created_at", -1)], name="status_date_idx")
-    #             logger.info("✅ Orders indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Orders indexes already exist")
-            
-    #         # Cart collection indexes
-    #         try:
-    #             self.cart.create_index("user_id", unique=True, name="user_cart_unique")
-    #             self.cart.create_index("updated_at", name="cart_updated_idx")
-    #             logger.info("✅ Cart indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Cart indexes already exist")
-            
-    #         # Order Items collection indexes
-    #         try:
-    #             self.order_items.create_index("order_id", name="order_items_order_idx")
-    #             self.order_items.create_index("product_id", name="order_items_product_idx")
-    #             self.order_items.create_index([("order_id", 1), ("product_id", 1)], name="order_product_idx")
-    #             logger.info("✅ Order Items indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Order Items indexes already exist")
-            
-    #         # Sessions collection indexes (for authentication)
-    #         try:
-    #             self.sessions.create_index("token", unique=True, name="token_unique")
-    #             self.sessions.create_index("user_id", name="session_user_idx")
-    #             self.sessions.create_index("expires_at", expireAfterSeconds=0, name="session_ttl")
-    #             logger.info("✅ Sessions indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Sessions indexes already exist")
-            
-    #         # Categories collection indexes
-    #         try:
-    #             self.categories.create_index("name", unique=True, name="category_name_unique")
-    #             self.categories.create_index("slug", unique=True, name="category_slug_unique")
-    #             self.categories.create_index("is_active", name="category_active_idx")
-    #             logger.info("✅ Categories indexes created")
-    #         except OperationFailure as e:
-    #             if "already exists" not in str(e):
-    #                 raise e
-    #             logger.info("✅ Categories indexes already exist")
-            
-    #         logger.info("🎉 All database indexes created successfully!")
-    #         return True
-            
-    #     except Exception as e:
-    #         logger.error(f"❌ Error creating indexes: {e}")
-    #         return False
-    
+
     async def health_check(self) -> Dict[str, Any]:
-        """Check database health and return status"""
+        """Check database health asynchronously and return status"""
+        if not self.client or not self.db:
+            return {"status": "unhealthy", "error": "Not connected", "connection": "failed"}
+
         try:
-            # Test connection
-            self.client.admin.command('ping')
-            
-            # Get database stats
-            stats = self.db.command("dbStats")
-            
+            await self.db.command("ping")
+            stats = await self.db.command("dbStats")
             return {
                 "status": "healthy",
                 "database": self.database_name,
@@ -231,69 +206,35 @@ class DatabaseManager:
                 "data_size": stats.get("dataSize", 0),
                 "storage_size": stats.get("storageSize", 0),
                 "indexes": stats.get("indexes", 0),
-                "connection": "active"
+                "connection": "active",
             }
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e),
-                "connection": "failed"
-            }
-    
-    
-    
-    # async def initialize(self) -> bool:
-    #     """Initialize database connection and create indexes"""
-    #     if not self.connect():
-    #         return False
-        
-    #     if not self.create_indexes():
-    #         return False
-        
-    #     # Verify collections work by doing a simple operation
-    #     try:
-    #         collections_to_test = ['users', 'products', 'orders', 'cart']
-    #         for collection_name in collections_to_test:
-    #             collection = self.get_collection(collection_name)
-    #             # Test insert and delete
-    #             test_doc = {"_test": True, "timestamp": datetime.utcnow()}
-    #             result = collection.insert_one(test_doc)
-    #             collection.delete_one({"_id": result.inserted_id})
-    #             logger.info(f"✅ {collection_name} collection verified")
-            
-    #         logger.info("🚀 Database initialized successfully!")
-    #         return True
-            
-    #     except Exception as e:
-    #         logger.error(f"❌ Database verification failed: {e}")
-    #         return False
-    
+            return {"status": "unhealthy", "error": str(e), "connection": "failed"}
+
     async def get_database_info(self) -> Dict[str, Any]:
-        """Get detailed database information"""
+        """Get detailed database info asynchronously"""
+        if not self.client or not self.db:
+            return {"error": "Not connected"}
+
         try:
-            # Server info
-            server_info = self.client.server_info()
-            
-            # Database stats
-            db_stats = self.db.command("dbStats")
-            
-            # Collection info
-            collections = self.db.list_collection_names()
+            server_info = await self.client.server_info()
+            db_stats = await self.db.command("dbStats")
+            collections = await self.db.list_collection_names()
             collection_stats = {}
-            
+
             for collection_name in collections:
                 try:
-                    stats = self.db.command("collStats", collection_name)
+                    stats = await self.db.command("collStats", collection_name)
                     collection_stats[collection_name] = {
                         "count": stats.get("count", 0),
                         "size": stats.get("size", 0),
                         "avgObjSize": stats.get("avgObjSize", 0),
                         "totalIndexSize": stats.get("totalIndexSize", 0),
-                        "nindexes": stats.get("nindexes", 0)
+                        "nindexes": stats.get("nindexes", 0),
                     }
-                except:
+                except Exception:
                     collection_stats[collection_name] = {"error": "Could not get stats"}
-            
+
             return {
                 "server_version": server_info.get("version"),
                 "database_name": self.database_name,
@@ -305,47 +246,47 @@ class DatabaseManager:
                     "data_size": db_stats.get("dataSize", 0),
                     "storage_size": db_stats.get("storageSize", 0),
                     "indexes": db_stats.get("indexes", 0),
-                    "index_size": db_stats.get("indexSize", 0)
-                }
+                    "index_size": db_stats.get("indexSize", 0),
+                },
             }
         except Exception as e:
             return {"error": str(e)}
 
-# Create global database instance
+
+# Global instance
 database = DatabaseManager()
 
-# Convenience functions for backward compatibility
-async def create_tables() -> bool:
-    """Initialize database - for compatibility with existing code"""
-    return database.initialize()
+# Convenience async functions for external use
 
-async def get_database() -> MongoDatabase:
-    """Get the MongoDB database instance"""
+async def create_tables() -> bool:
+    return await database.initialize()
+
+async def get_database() -> AsyncIOMotorDatabase:
+    if not database.db:
+        raise RuntimeError("Database not initialized")
     return database.db
 
-async def check_database_health() -> bool:
-    """Check if database is healthy"""
-    health = database.health_check()
-    return health.get("status") == "healthy"
+async def check_database_health() -> Dict[str, Any]:
+    return await database.health_check()
 
-# Export collections for direct access
-async def get_users_collection() -> Collection:
+# Export collections (sync properties)
+def get_users_collection():
     return database.users
 
-async def get_products_collection() -> Collection:
+def get_products_collection():
     return database.products
 
-async def get_orders_collection() -> Collection:
+def get_orders_collection():
     return database.orders
 
-async def get_cart_collection() -> Collection:
+def get_cart_collection():
     return database.cart
 
-async def get_order_items_collection() -> Collection:
+def get_order_items_collection():
     return database.order_items
 
-async def get_sessions_collection() -> Collection:
+def get_sessions_collection():
     return database.sessions
 
-async def get_categories_collection() -> Collection:
+def get_categories_collection():
     return database.categories
