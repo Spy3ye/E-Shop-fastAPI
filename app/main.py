@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
 from app.routers import user, product, order, auth, cart
-from app.database import DatabaseManager
+from app.database import database , DatabaseManager  # Import the global instance here
 
 app = FastAPI(
     title="E-Commerce API",
@@ -14,9 +14,9 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],  # Replace with allowed origins in production
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -27,22 +27,19 @@ app.include_router(product.router, tags=["Products"], prefix="/api/products")
 app.include_router(order.router, tags=["Orders"], prefix="/api/orders")
 app.include_router(cart.router, tags=["Shopping Cart"], prefix="/api/cart")
 
-# Create a single instance of DatabaseManager for the app lifecycle
-db_manager = DatabaseManager()
-
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on application startup"""
-    success = await db_manager.initialize()  # This calls database.initialize()
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to initialize database")
+    success = database.initialize()
+    if success is None:
+        raise HTTPException(status_code=500, detail="❌ Failed to initialize the database")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up database connections on shutdown"""
-    db_manager.disconnect()
+    """Close the MongoDB connection on shutdown"""
+    DatabaseManager.disconnect()
 
-# Health check endpoints
 @app.get("/", tags=["Root"])
 async def root():
     return {
@@ -51,31 +48,24 @@ async def root():
         "status": "healthy"
     }
 
-@app.get("/health")
+@app.get("/health", tags=["Monitoring"])
 async def health_check():
-    health_info = db_manager.health_check()
-    return health_info
+    return DatabaseManager.health_check()
 
-@app.get("/db-info")
+@app.get("/db-info", tags=["Monitoring"])
 async def database_info():
-    """Get detailed database information"""
-    return db_manager.get_database_info()
+    return DatabaseManager.get_database_info()
 
 # Custom OpenAPI schema
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
     openapi_schema = get_openapi(
         title="E-Commerce API",
         version="1.0.0",
         description="API for a modern e-commerce platform",
         routes=app.routes,
     )
-    
-    # Here you can customize the schema if needed, e.g. add logos, custom tags, etc.
-    # openapi_schema["info"]["x-logo"] = {"url": "https://example.com/logo.png"}
-
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
