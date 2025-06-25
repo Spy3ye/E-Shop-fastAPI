@@ -31,7 +31,7 @@ app.include_router(cart.router, tags=["Shopping Cart"], prefix="/api/cart")
 async def startup_event():
     """Initialize database on application startup"""
     success = database.initialize()
-    if success is None:
+    if success == False:
         raise HTTPException(status_code=500, detail="❌ Failed to initialize the database")
 
 
